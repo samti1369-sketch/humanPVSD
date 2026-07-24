@@ -53,7 +53,7 @@ th:hover{background:#dbeaf8}td.num{text-align:right}
   <div class="cards">
     <div class="card"><div class="label">จำนวนเจ้าหน้าที่</div><div class="value" id="totalPeople">0</div></div>
     <div class="card"><div class="label">จำนวนส่วน</div><div class="value" id="totalSections">0</div></div>
-    <div class="card"><div class="label">คะแนนเฉลี่ย</div><div class="value" id="avgScore">0</div></div>
+    <div class="card"><div class="label">คะแนนต่ำสุด</div><div class="value" id="minScore">0</div></div>
     <div class="card"><div class="label">คะแนนสูงสุด</div><div class="value" id="maxScore">0</div></div>
   </div>
 
@@ -180,7 +180,7 @@ function updateCards(){
   const scores=filteredRows.map(r=>r.total);
   document.getElementById("totalPeople").textContent=filteredRows.length.toLocaleString("th-TH");
   document.getElementById("totalSections").textContent=new Set(filteredRows.filter(r=>r.section!=="ผอ.ส่วน").map(r=>r.section)).size.toLocaleString("th-TH");
-  document.getElementById("avgScore").textContent=scores.length?displayNum(scores.reduce((a,b)=>a+b,0)/scores.length):"0";
+  document.getElementById("minScore").textContent=scores.length?displayNum(Math.min(...scores)):"0";
   document.getElementById("maxScore").textContent=scores.length?displayNum(Math.max(...scores)):"0";
 }
 function scoreColors(items){
