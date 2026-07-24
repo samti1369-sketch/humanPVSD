@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard ประเมินคะแนนเจ้าหน้าที่รายบุคคล</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+<style>
+:root { --blue:#0f3d74; --blue2:#1f5f9f; --border:#d9e3ef; --text:#19324a; --muted:#6d7f91; --shadow:0 8px 22px rgba(25,50,74,.08); }
+*{box-sizing:border-box}
+body{margin:0;font-family:"Noto Sans Thai","Tahoma",sans-serif;background:#f5f8fc;color:var(--text)}
+header{background:linear-gradient(135deg,var(--blue),var(--blue2));color:#fff;padding:24px 28px}
+header h1{margin:0 0 6px;font-size:28px} header p{margin:0;opacity:.9}
+.container{max-width:1500px;margin:auto;padding:22px}
+.controls{display:grid;grid-template-columns:1.2fr 1fr auto;gap:12px;background:#fff;padding:16px;border-radius:16px;box-shadow:var(--shadow);margin-bottom:18px}
+input,select,button{font:inherit;border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:#fff}
+button{background:var(--blue);color:#fff;border:none;cursor:pointer}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+.card{background:#fff;border-radius:16px;padding:18px;box-shadow:var(--shadow)}
+.card .label{color:var(--muted);font-size:14px}.card .value{font-size:30px;font-weight:700;margin-top:5px}
+.section-title{font-size:20px;font-weight:700;margin:22px 0 12px}
+.charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.chart-card{background:#fff;border-radius:16px;padding:16px;box-shadow:var(--shadow);min-height:360px}
+.chart-card h3{margin:0 0 12px;font-size:17px}
+.chart-wrap{position:relative;height:310px}
+.table-card{background:#fff;border-radius:16px;padding:16px;box-shadow:var(--shadow);margin-top:18px;overflow:hidden}
+.rankings{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:18px}.rankings .table-card{margin-top:0}
+.table-wrap{overflow:auto;max-height:620px}
+table{border-collapse:collapse;width:100%;min-width:900px}
+th,td{padding:11px 12px;border-bottom:1px solid #e8eef5;text-align:left;white-space:nowrap}
+th{position:sticky;top:0;background:#eaf2fb;color:#153b67;cursor:pointer;z-index:2}
+th:hover{background:#dbeaf8}td.num{text-align:right}
+.badge{display:inline-block;padding:4px 9px;border-radius:999px;background:#eaf2fb;color:#164c7d;font-size:12px;font-weight:600}
+.status{font-size:13px;color:var(--muted);margin-top:8px}
+.error{background:#fff1f1;color:#9a2020;padding:12px;border-radius:10px;margin-bottom:14px;display:none}
+@media(max-width:900px){.cards{grid-template-columns:repeat(2,1fr)}.charts{grid-template-columns:1fr}.controls{grid-template-columns:1fr}.rankings{grid-template-columns:1fr}}
+@media(max-width:520px){.cards{grid-template-columns:1fr}header h1{font-size:23px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>ข้อมูลการปฏิบัติงาน</h1>
+  <p>Dashboard สำหรับประเมินคะแนนเจ้าหน้าที่รายบุคคล แยกตามส่วน</p>
+</header>
+<div class="container">
+  <div id="errorBox" class="error"></div>
+  <div class="controls">
+    <input id="searchInput" placeholder="ค้นหาชื่อเจ้าหน้าที่">
+    <select id="sectionFilter"><option value="">ทุกส่วน</option></select>
+    <button id="reloadBtn">โหลดข้อมูลใหม่</button>
+  </div>
+  <div class="cards">
+    <div class="card"><div class="label">จำนวนเจ้าหน้าที่</div><div class="value" id="totalPeople">0</div></div>
+    <div class="card"><div class="label">จำนวนส่วน</div><div class="value" id="totalSections">0</div></div>
+    <div class="card"><div class="label">คะแนนเฉลี่ย</div><div class="value" id="avgScore">0</div></div>
+    <div class="card"><div class="label">คะแนนสูงสุด</div><div class="value" id="maxScore">0</div></div>
+  </div>
+
+  <div class="rankings">
+    <div class="table-card">
+      <div class="section-title" style="margin-top:0">เจ้าหน้าที่ที่ได้คะแนนสูงสุด 5 อันดับ</div>
+      <div class="table-wrap" style="max-height:none">
+        <table id="top5Table" style="min-width:520px">
+          <thead><tr>
+            <th>อันดับ</th>
+            <th>รายชื่อ</th>
+            <th>ส่วน</th>
+            <th>คะแนนรวม</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="table-card">
+      <div class="section-title" style="margin-top:0">เจ้าหน้าที่ที่ได้คะแนนต่ำสุด 5 อันดับ</div>
+      <div class="table-wrap" style="max-height:none">
+        <table id="bottom5Table" style="min-width:520px">
+          <thead><tr>
+            <th>อันดับ</th>
+            <th>รายชื่อ</th>
+            <th>ส่วน</th>
+            <th>คะแนนรวม</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">กราฟคะแนนแยกตามส่วน</div>
+  <div id="charts" class="charts"></div>
+
+  <div class="section-title">กราฟภาพรวมเจ้าหน้าที่ทุกคน</div>
+  <div class="chart-card" style="margin-bottom:18px;min-height:520px">
+    <h3>คะแนนรวมรายบุคคลทุกส่วน (ไม่รวม ผอ.ส่วน)</h3>
+    <div class="chart-wrap" id="overviewChartWrap" style="height:460px"><canvas id="overviewChart"></canvas></div>
+  </div>
+  <div class="table-card">
+    <div class="section-title" style="margin-top:0">ตารางข้อมูลรายบุคคล</div>
+    <div class="table-wrap">
+      <table id="dataTable">
+        <thead><tr>
+          <th data-key="section">ส่วน</th><th data-key="name">รายชื่อ</th>
+          <th data-key="week1">สัปดาห์ 1</th><th data-key="week2">สัปดาห์ 2</th>
+          <th data-key="week3">สัปดาห์ 3</th><th data-key="week4">สัปดาห์ 4</th>
+          <th data-key="total">คะแนนรวม</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="status" id="statusText"></div>
+  </div>
+</div>
+<script>
+const SPREADSHEET_ID="16x2EuCEjUtP2Q9toMCI57Xu275r9m8Yh1Ko6QJUnFvk";
+const SHEET_GID="424543714";
+const GVIZ_URL=`https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?gid=${SHEET_GID}&tqx=out:json`;
+const FALLBACK_DATA=[["ผอ.ส่วน", "ศป.", null, null, null, null, "100"], ["ผอ.ส่วน", "จฐ", null, null, null, null, "100"], ["ผอ.ส่วน", "ลป", null, null, null, null, "100"], ["ผอ.ส่วน", "วป", null, null, null, null, "100"], ["ผอ.ส่วน", "บป", null, null, null, null, "100"], ["ศป", "นายอภิรัตน์ รัตนไพบูลย์", null, null, null, null, "0"], ["ศป", "นางสาวปิยพร พรศักดา", null, null, null, null, "0"], ["ศป", "นางสาวอุมาพร กาฬภักดี", null, null, null, null, "0"], ["ศป", "นางสาววิลาวัณย์ จาละ", null, null, null, null, "0"], ["ศป", "นายเอกชาติ ภู่อารีย์", null, null, null, null, "0"], ["ศป", "นางสาวอนุสรา ปิงสาร", null, null, null, null, "0"], ["ศป", "นางสาวปวีณา วงค์ญาติ", null, null, null, null, "0"], ["ศป", "นายอานุภาพ เพียรดี", null, null, null, null, "0"], ["ศป", "นางสาวสุภาวดี สุขสมบัติ", null, null, null, null, "0"], ["ศป", "นางสาวณัฐกฤตา พรหมไพร", null, null, null, null, "0"], ["ศป", "นางพูลสิน จั่นนพรัตน์", null, null, null, null, "0"], ["ศป", "นายประภาส พรศักดา", null, null, null, null, "0"], ["จฐ", "ว่าที่ร้อยโทยศภฤศ ศรีจันทร์อ่อน", null, null, null, null, "0"], ["จฐ", "นายเลิศชาย ดำพะธิก", null, null, null, null, "0"], ["จฐ", "นางสาวหนึ่งฤทัย ฤทธิ์เรืองเดช", null, null, null, null, "0"], ["จฐ", "นายธีรวัฒน์ ถิ่นฐาน", null, null, null, null, "0"], ["จฐ", "นางสาวเหมือนขวัญ เกษแก้ว", null, null, null, null, "0"], ["จฐ", "นางวรรณนิภา รานอก", null, null, null, null, "0"], ["จฐ", "นายอรรถพร จันทฤดี", null, null, null, null, "0"], ["จฐ", "นางสาวรัชต์ฐิตานันท์ ชูสวัสดิ์", null, null, null, null, "0"], ["จฐ", "นางสาวอรวรรณ นาคพเยาว์", null, null, null, null, "0"], ["จฐ", "ว่าที่ร้อยตรีขจรศักดิ์ สุขุม", null, null, null, null, "0"], ["จฐ", "นายธีรภัทร  นาแพง", null, null, null, null, "0"], ["ลป", "นางสาววันวิสาข์ เฉลิมชวลิต", null, null, null, null, "0"], ["ลป", "นางสาวอรกวี มณีทัต", null, null, null, null, "0"], ["ลป", "นางสาวอาภารวี สุขิทาภรณ์", null, null, null, null, "0"], ["ลป", "นางสาวจันจิรา เพ็งอ่อน", null, null, null, null, "0"], ["ลป", "นายอนุสรณ์ อินทวงค์", null, null, null, null, "0"], ["ลป", "นางสาวจีรามาศ จินดาถา", null, null, null, null, "0"], ["ลป", "นางสาวนวลปราง ปรึกมะเริง", null, null, null, null, "0"], ["ลป", "นางสาวสุวกุล สุขผล", null, null, null, null, "0"], ["วป", "นางสาวอาจรีย์ ศิริอธิวัฒน์", null, null, null, null, "0"], ["วป", "นายสุทธิศักดิ์ สุทธิประภา", null, null, null, null, "0"], ["วป", "นางสาวขวัญใจ ยงยศยิ่ง", null, null, null, null, "0"], ["วป", "นายนิธินันท์ ทรัพย์เจริญ", null, null, null, null, "0"], ["วป", "นางสาวปัทมาภรณ์ เดชยาภิรมย์", null, null, null, null, "0"], ["วป", "นายจิรวัฒน์ ขันชัยภูมิ", null, null, null, null, "0"], ["วป", "นางสาวสลิลภัสสร์ วิเศษสิงห์", null, null, null, null, "0"], ["วป", "นางสาวชนานันท์ เอกอัครานุสรณ์", null, null, null, null, "0"], ["วป", "นางสาวนันทญ์ณภัค องซ่า", null, null, null, null, "0"], ["บป", "นางสาวสายสุนีย์ ศรีสุวรรณ", null, null, null, null, "0"], ["บป", "นางสาววรวลัญช์ จัตุรัส", null, null, null, null, "0"], ["บป", "นายอมรภัค รักษาศรี", null, null, null, null, "0"], ["บป", "นางเพ็ญจิตร คงเจริญ", null, null, null, null, "0"], ["บป", "นางสาวปภัสรา โพธิ์พูน", null, null, null, null, "0"], ["บป", "นายวรากร ผิวเหลือง", null, null, null, null, "0"], ["บป", "นางสาววชิรญาณ์ แซ่ก๊อก", null, null, null, null, "0"], ["บป", "นางสาวสุธาสินี สุขอนันต์", null, null, null, null, "0"], ["บป", "นางสาวเกศมณี จันโทกุล", null, null, null, null, "0"], ["บป", "นายภูริช เลาะวิถี", null, null, null, null, "0"]];
+let rows=[],filteredRows=[],charts=[],overviewChart=null,sortState={key:"total",direction:"desc"};
+Chart.register(ChartDataLabels);
+
+function num(v){if(v===null||v===undefined||v==="")return 0;const n=Number(String(v).replace(/,/g,""));return Number.isFinite(n)?n:0}
+function displayNum(v){const n=num(v);return Number.isInteger(n)?n.toLocaleString("th-TH"):n.toLocaleString("th-TH",{maximumFractionDigits:2})}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
+function normalize(raw){
+  const out=[];let currentSection="";
+  raw.forEach(r=>{
+    if(!Array.isArray(r))return;
+    let section=(r[0]??"").toString().trim();const name=(r[1]??"").toString().trim();
+    if(section)currentSection=section;else section=currentSection;
+    if(!name||name==="รายชื่อ"||section==="ส่วน")return;
+    out.push({section,name,week1:num(r[2]),week2:num(r[3]),week3:num(r[4]),week4:num(r[5]),total:num(r[6])});
+  });
+  return out;
+}
+function parseGviz(text){
+  const jsonText=text.substring(text.indexOf("{"),text.lastIndexOf("}")+1);
+  const obj=JSON.parse(jsonText);
+  return obj.table.rows.map(row=>row.c.map(c=>c?(c.f??c.v??""):""));
+}
+async function loadData(){
+  const errorBox=document.getElementById("errorBox");errorBox.style.display="none";
+  try{
+    const res=await fetch(GVIZ_URL,{cache:"no-store"});
+    if(!res.ok)throw new Error("โหลด Google Sheets ไม่สำเร็จ");
+    const raw=parseGviz(await res.text());rows=normalize(raw);
+    if(!rows.length)throw new Error("ไม่พบข้อมูลในชีต 2");
+    document.getElementById("statusText").textContent="ข้อมูลล่าสุดจาก Google Sheets";
+  }catch(err){
+    rows=normalize(FALLBACK_DATA);
+    errorBox.textContent="ไม่สามารถโหลดข้อมูลสดจาก Google Sheets ได้ จึงแสดงข้อมูลสำรองล่าสุด ตรวจสอบว่าชีตเปิดสิทธิ์ “ทุกคนที่มีลิงก์ดูได้”";
+    errorBox.style.display="block";
+    document.getElementById("statusText").textContent="กำลังแสดงข้อมูลสำรองในไฟล์";
+  }
+  setupSections();applyFilters();
+}
+function setupSections(){
+  const sel=document.getElementById("sectionFilter"),current=sel.value;
+  const sections=[...new Set(rows.map(r=>r.section))].filter(Boolean);
+  sel.innerHTML='<option value="">ทุกส่วน</option>'+sections.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("");
+  sel.value=sections.includes(current)?current:"";
+}
+function applyFilters(){
+  const q=document.getElementById("searchInput").value.trim().toLowerCase();
+  const section=document.getElementById("sectionFilter").value;
+  filteredRows=rows.filter(r=>(!section||r.section===section)&&(!q||r.name.toLowerCase().includes(q)));
+  sortRows();updateCards();renderCharts();renderTop5();renderBottom5();renderTable();
+}
+function sortRows(){
+  const {key,direction}=sortState;
+  filteredRows.sort((a,b)=>{
+    const av=a[key],bv=b[key];
+    const cmp=typeof av==="number"?av-bv:String(av).localeCompare(String(bv),"th");
+    return direction==="asc"?cmp:-cmp;
+  });
+}
+function updateCards(){
+  const scores=filteredRows.map(r=>r.total);
+  document.getElementById("totalPeople").textContent=filteredRows.length.toLocaleString("th-TH");
+  document.getElementById("totalSections").textContent=new Set(filteredRows.filter(r=>r.section!=="ผอ.ส่วน").map(r=>r.section)).size.toLocaleString("th-TH");
+  document.getElementById("avgScore").textContent=scores.length?displayNum(scores.reduce((a,b)=>a+b,0)/scores.length):"0";
+  document.getElementById("maxScore").textContent=scores.length?displayNum(Math.max(...scores)):"0";
+}
+function scoreColors(items){
+  if(!items.length)return [];
+  const scores=items.map(r=>r.total);
+  const maxScore=Math.max(...scores);
+  const minScore=Math.min(...scores);
+  return items.map(r=>{
+    if(maxScore===minScore)return "#1f5f9f";
+    if(r.total===maxScore)return "#2e7d32";
+    if(r.total===minScore)return "#c62828";
+    return "#4f86b9";
+  });
+}
+function renderCharts(){
+  charts.forEach(c=>c.destroy());charts=[];
+  if(overviewChart){overviewChart.destroy();overviewChart=null;}
+
+  const overviewItems=filteredRows
+    .filter(r=>r.section!=="ผอ.ส่วน")
+    .slice()
+    .sort((a,b)=>b.total-a.total);
+
+  const overviewWrap=document.getElementById("overviewChartWrap");
+  overviewWrap.style.height=Math.max(460,overviewItems.length*30)+"px";
+
+  overviewChart=new Chart(document.getElementById("overviewChart"),{
+    type:"bar",
+    data:{
+      labels:overviewItems.map(r=>`${r.name} (${r.section})`),
+      datasets:[{label:"คะแนนรวม",data:overviewItems.map(r=>r.total),backgroundColor:scoreColors(overviewItems),borderColor:scoreColors(overviewItems),borderWidth:1,borderRadius:5}]
+    },
+    options:{
+      indexAxis:"y",responsive:true,maintainAspectRatio:false,
+      scales:{
+        x:{beginAtZero:true,suggestedMax:100,title:{display:true,text:"คะแนน"}},
+        y:{ticks:{autoSkip:false,font:{size:11}}}
+      },
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{afterBody:(ctx)=>{
+          const r=overviewItems[ctx[0].dataIndex];
+          return [
+            `ส่วน: ${r.section}`,
+            `สัปดาห์ 1: ${displayNum(r.week1)}`,
+            `สัปดาห์ 2: ${displayNum(r.week2)}`,
+            `สัปดาห์ 3: ${displayNum(r.week3)}`,
+            `สัปดาห์ 4: ${displayNum(r.week4)}`
+          ];
+        }}},
+        datalabels:{anchor:"end",align:"right",formatter:v=>displayNum(v),font:{weight:"bold"}}
+      }
+    }
+  });
+
+  const host=document.getElementById("charts");host.innerHTML="";
+  const groups={};filteredRows.forEach(r=>(groups[r.section]??=[]).push(r));
+  const sectionOrder=Object.keys(groups).sort((a,b)=>{
+    if(a==="ผอ.ส่วน")return -1;
+    if(b==="ผอ.ส่วน")return 1;
+    return a.localeCompare(b,"th");
+  });
+  sectionOrder.forEach(section=>{
+    const items=groups[section];
+    items.sort((a,b)=>b.total-a.total);
+    const card=document.createElement("div");card.className="chart-card";
+    card.innerHTML=`<h3>ส่วน ${escapeHtml(section)} · ${items.length} คน</h3><div class="chart-wrap"><canvas></canvas></div>`;
+    host.appendChild(card);
+    const chart=new Chart(card.querySelector("canvas"),{
+      type:"bar",
+      data:{labels:items.map(r=>r.name),datasets:[{label:"คะแนนรวม",data:items.map(r=>r.total),backgroundColor:scoreColors(items),borderColor:scoreColors(items),borderWidth:1,borderRadius:5}]},
+      options:{
+        indexAxis:"y",responsive:true,maintainAspectRatio:false,
+        scales:{x:{beginAtZero:true,suggestedMax:100,title:{display:true,text:"คะแนน"}},y:{ticks:{autoSkip:false}}},
+        plugins:{
+          legend:{display:false},
+          tooltip:{callbacks:{afterBody:(ctx)=>{
+            const r=items[ctx[0].dataIndex];
+            return [`สัปดาห์ 1: ${displayNum(r.week1)}`,`สัปดาห์ 2: ${displayNum(r.week2)}`,`สัปดาห์ 3: ${displayNum(r.week3)}`,`สัปดาห์ 4: ${displayNum(r.week4)}`];
+          }}},
+          datalabels:{anchor:"end",align:"right",formatter:v=>displayNum(v),font:{weight:"bold"}}
+        }
+      }
+    });
+    charts.push(chart);
+  });
+  if(!Object.keys(groups).length)host.innerHTML='<div class="card">ไม่พบข้อมูลตามเงื่อนไขที่เลือก</div>';
+}
+function renderTop5(){
+  const top5=filteredRows
+    .filter(r=>r.section!=="ผอ.ส่วน")
+    .slice()
+    .sort((a,b)=>b.total-a.total||a.name.localeCompare(b.name,"th"))
+    .slice(0,5);
+
+  const tbody=document.querySelector("#top5Table tbody");
+  tbody.innerHTML=top5.map((r,index)=>`<tr>
+    <td class="num"><strong>${index+1}</strong></td>
+    <td>${escapeHtml(r.name)}</td>
+    <td><span class="badge">${escapeHtml(r.section)}</span></td>
+    <td class="num"><strong>${displayNum(r.total)}</strong></td>
+  </tr>`).join("");
+
+  if(!top5.length){
+    tbody.innerHTML='<tr><td colspan="4" style="text-align:center;color:#6d7f91">ไม่พบข้อมูล</td></tr>';
+  }
+}
+function renderBottom5(){
+  const bottom5=filteredRows
+    .filter(r=>r.section!=="ผอ.ส่วน")
+    .slice()
+    .sort((a,b)=>a.total-b.total||a.name.localeCompare(b.name,"th"))
+    .slice(0,5);
+
+  const tbody=document.querySelector("#bottom5Table tbody");
+  tbody.innerHTML=bottom5.map((r,index)=>`<tr>
+    <td class="num"><strong>${index+1}</strong></td>
+    <td>${escapeHtml(r.name)}</td>
+    <td><span class="badge">${escapeHtml(r.section)}</span></td>
+    <td class="num"><strong>${displayNum(r.total)}</strong></td>
+  </tr>`).join("");
+
+  if(!bottom5.length){
+    tbody.innerHTML='<tr><td colspan="4" style="text-align:center;color:#6d7f91">ไม่พบข้อมูล</td></tr>';
+  }
+}
+function renderTable(){
+  const tbody=document.querySelector("#dataTable tbody");
+  tbody.innerHTML=filteredRows.map(r=>`<tr>
+    <td><span class="badge">${escapeHtml(r.section)}</span></td><td>${escapeHtml(r.name)}</td>
+    <td class="num">${displayNum(r.week1)}</td><td class="num">${displayNum(r.week2)}</td>
+    <td class="num">${displayNum(r.week3)}</td><td class="num">${displayNum(r.week4)}</td>
+    <td class="num"><strong>${displayNum(r.total)}</strong></td></tr>`).join("");
+  const baseStatus=document.getElementById("statusText").textContent.split(" · ")[0];
+  document.getElementById("statusText").textContent=`${baseStatus} · แสดง ${filteredRows.length.toLocaleString("th-TH")} รายการ`;
+  document.querySelectorAll("th").forEach(th=>{
+    const base=th.textContent.replace(/[ ▲▼]$/,"");
+    th.textContent=base+(sortState.key===th.dataset.key?(sortState.direction==="asc"?" ▲":" ▼"):"");
+  });
+}
+document.querySelectorAll("th").forEach(th=>th.addEventListener("click",()=>{
+  const key=th.dataset.key;
+  sortState.direction=sortState.key===key&&sortState.direction==="asc"?"desc":"asc";
+  sortState.key=key;applyFilters();
+}));
+document.getElementById("searchInput").addEventListener("input",applyFilters);
+document.getElementById("sectionFilter").addEventListener("change",applyFilters);
+document.getElementById("reloadBtn").addEventListener("click",loadData);
+loadData();
+</script>
+</body>
+</html>
